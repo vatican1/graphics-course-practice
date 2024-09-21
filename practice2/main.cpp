@@ -1,3 +1,7 @@
+// #define WITHOUT_MTR
+#define USE_MTR
+
+
 #ifdef WIN32
 #include <SDL.h>
 #undef main
@@ -12,6 +16,9 @@
 #include <iostream>
 #include <chrono>
 #include <unordered_map>
+
+
+
 
 std::string to_string(std::string_view str)
 {
@@ -28,8 +35,13 @@ void glew_fail(std::string_view message, GLenum error)
     throw std::runtime_error(to_string(message) + reinterpret_cast<const char *>(glewGetErrorString(error)));
 }
 
+
+#ifdef WITHOUT_MTR
 const char vertex_shader_source[] =
 R"(#version 330 core
+
+uniform float scale;
+uniform float angle;
 
 const vec2 VERTICES[3] = vec2[3](
     vec2(0.0, 1.0),
@@ -48,10 +60,45 @@ out vec3 color;
 void main()
 {
     vec2 position = VERTICES[gl_VertexID];
+    position *= scale;
+    position.x = position.x * cos(angle) - position.y * sin(angle);
+    position.y = position.x * sin(angle) + position.y * cos(angle);
     gl_Position = vec4(position, 0.0, 1.0);
     color = COLORS[gl_VertexID];
 }
 )";
+#endif
+
+
+#ifdef USE_MTR
+const char vertex_shader_source[] =
+    R"(#version 330 core
+
+uniform mat4 transform;
+uniform mat4 view;
+
+const vec2 VERTICES[3] = vec2[3](
+    vec2(0.0, 1.0),
+    vec2(-sqrt(0.75), -0.5),
+    vec2( sqrt(0.75), -0.5)
+);
+
+const vec3 COLORS[3] = vec3[3](
+    vec3(1.0, 0.0, 0.0),
+    vec3(0.0, 1.0, 0.0),
+    vec3(0.0, 0.0, 1.0)
+);
+
+out vec3 color;
+
+void main()
+{
+    vec2 position = VERTICES[gl_VertexID];
+    gl_Position = view * transform * vec4(position, 0.0, 1.0);
+    color = COLORS[gl_VertexID];
+}
+)";
+#endif
 
 const char fragment_shader_source[] =
 R"(#version 330 core
@@ -131,6 +178,8 @@ int main() try
     if (!gl_context)
         sdl2_fail("SDL_GL_CreateContext: ");
 
+    SDL_GL_SetSwapInterval(0);
+
     if (auto result = glewInit(); result != GLEW_NO_ERROR)
         glew_fail("glewInit: ", result);
 
@@ -151,6 +200,22 @@ int main() try
 
     auto last_frame_start = std::chrono::high_resolution_clock::now();
 
+    glUseProgram(program);
+
+    float scale = 0.1;
+    float time = 0.f;
+    float x = 0, y = 0;
+
+#ifdef WITHOUT_MTR
+    GLint scaleLoc = glGetUniformLocation(program, "scale");
+    glUniform1f(scaleLoc, scale);
+    GLint angleLoc = glGetUniformLocation(program, "angle");
+#endif
+
+#ifdef USE_MTR
+    GLint transformLoc = glGetUniformLocation(program, "transform");
+    GLint viewLoc = glGetUniformLocation(program, "view");
+#endif
     bool running = true;
     while (running)
     {
@@ -186,10 +251,40 @@ int main() try
         glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(program);
+#ifdef WITHOUT_MTR
+        glUniform1f(angleLoc, time);
+#endif
+
+#ifdef USE_MTR
+        float transform[16] =
+        {
+        scale * cos(time),  scale * -sin(time),     0, x, // 1 строка
+        scale * sin(time),  scale *  cos(time),     0, y, // 2 строка
+                        0,                   0, scale, 0, // 3 строка
+                        0,                   0,     0, 1, // 4 строка
+        };
+
+        float view[16] =
+            {
+            height / (float)width, 0, 0, 0, // 1 строка
+                                0, 1, 0, 0, // 2 строка
+                                0, 0, 1, 0, // 3 строка
+                                0, 0, 0, 1, // 4 строка
+        };
+
+        glUniformMatrix4fv(transformLoc, 1, GL_TRUE, transform);
+        glUniformMatrix4fv(viewLoc, 1, GL_TRUE, view);
+#endif
+        x = sin(time / 2.0) / 2.0;
+        y = cos(time / 2.0) / 2.0;
+
         glBindVertexArray(vao);
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
         SDL_GL_SwapWindow(window);
+        // dt = 0.001;
+        time += dt;
+        // std::cout << dt << " ";
     }
 
     SDL_GL_DeleteContext(gl_context);
