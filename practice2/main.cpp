@@ -1,5 +1,5 @@
 // #define WITHOUT_MTR
-#define USE_MTR
+// #define USE_MTR
 
 
 #ifdef WIN32
@@ -49,6 +49,8 @@ const vec2 VERTICES[3] = vec2[3](
     vec2( sqrt(0.75), -0.5)
 );
 
+vec2 center = (VERTICES[0] + VERTICES[1] + VERTICES[2]) / 3.0;
+
 const vec3 COLORS[3] = vec3[3](
     vec3(1.0, 0.0, 0.0),
     vec3(0.0, 1.0, 0.0),
@@ -60,9 +62,14 @@ out vec3 color;
 void main()
 {
     vec2 position = VERTICES[gl_VertexID];
+
+    position -= center;
     position *= scale;
-    position.x = position.x * cos(angle) - position.y * sin(angle);
-    position.y = position.x * sin(angle) + position.y * cos(angle);
+    float x = position.x;
+    float y = position.y;
+    position.x = x * cos(angle) - y * sin(angle);
+    position.y = x * sin(angle) + y * cos(angle);
+    position += center;
     gl_Position = vec4(position, 0.0, 1.0);
     color = COLORS[gl_VertexID];
 }
