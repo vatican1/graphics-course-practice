@@ -175,8 +175,69 @@ int main() try
     float time = 0.f;
 
     bool running = true;
+
+
+
+    GLuint vbo;
+    glGenBuffers(1, &vbo);
+
+    vertex v1 { 200.0,  200.0, 255,   0,   0, 255};
+    vertex v2 { 1000.0, 100.0,   0, 255,   0, 255};
+    vertex v3 {  100.0, 1000.0,  0,   0, 255, 255};
+    std::vector<vertex> vertices;// = {v1, v2, v3};
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    // glBufferData(GL_ARRAY_BUFFER,
+    //              vertices.size() * sizeof(vertices[0]),
+    //              vertices.data(), GL_STATIC_DRAW);
+
+    {
+        vertex tmp;
+        for(size_t i = 0; i < vertices.size(); ++i)
+        {
+            glGetBufferSubData(GL_ARRAY_BUFFER,sizeof(vertex) * i, sizeof(vertex), &tmp);
+            std::cout << tmp.position.x << " "
+                      << tmp.position.y << " "
+                      << (u_int)tmp.color[0] << " "
+                      << (u_int)tmp.color[1] << " "
+                      << (u_int)tmp.color[2] << " "
+                      << (u_int)tmp.color[3] << std::endl;
+        }
+    }
+
+    GLuint vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2,         GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)(0)                );
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE,  GL_TRUE, sizeof(vertex), (void*)(2 * sizeof(float)));
+
+    GLuint vboB;
+    glGenBuffers(1, &vboB);
+
+    std::vector<vertex> verticesB;
+    int quality = 4;
+
+    glBindBuffer(GL_ARRAY_BUFFER, vboB);
+
+    GLuint vaoB;
+    glGenVertexArrays(1, &vaoB);
+    glBindVertexArray(vaoB);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2,         GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)(0)                );
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE,  GL_TRUE, sizeof(vertex), (void*)(2 * sizeof(float)));
+
+
+
     while (running)
     {
+
+        bool need_update = false;
+
         for (SDL_Event event; SDL_PollEvent(&event);) switch (event.type)
         {
         case SDL_QUIT:
@@ -196,20 +257,37 @@ int main() try
             {
                 int mouse_x = event.button.x;
                 int mouse_y = event.button.y;
+
+                vertex new_v = {(float) mouse_x, (float) mouse_y, 220, 220, 128, 255};
+                vertices.push_back(new_v);
+                glBindBuffer(GL_ARRAY_BUFFER, vbo);
+                glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertex), vertices.data(), GL_STATIC_DRAW);
+                need_update = true;
             }
             else if (event.button.button == SDL_BUTTON_RIGHT)
             {
-
+                if (vertices.size() > 0)
+                {
+                    vertices.pop_back();
+                    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+                    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertex), vertices.data(), GL_STATIC_DRAW);
+                    need_update = true;
+                }
             }
             break;
         case SDL_KEYDOWN:
             if (event.key.keysym.sym == SDLK_LEFT)
             {
-
+                if (quality > 1)
+                {
+                    --quality;
+                    need_update = true;
+                }
             }
             else if (event.key.keysym.sym == SDLK_RIGHT)
             {
-
+                ++quality;
+                need_update = true;
             }
             break;
         }
@@ -224,16 +302,45 @@ int main() try
 
         glClear(GL_COLOR_BUFFER_BIT);
 
+
+        if(need_update)
+        {
+            verticesB.clear();
+            verticesB.reserve((float) vertices.size() * float(quality));
+            for(float t = 0; t <= 1; t+= 1 / (float) vertices.size() / float(quality))
+            {
+                vec2 p2d = bezier(vertices, t);
+                vertex vertex = {p2d.x, p2d.y, 255, 0, 0, 255};
+                verticesB.push_back(vertex);
+            }
+            glBindBuffer(GL_ARRAY_BUFFER, vboB);
+            glBufferData(GL_ARRAY_BUFFER, verticesB.size() * sizeof(vertex), verticesB.data(), GL_STATIC_DRAW);
+        }
+
         float view[16] =
         {
-            1.f, 0.f, 0.f, 0.f,
-            0.f, 1.f, 0.f, 0.f,
+            2.f / (float)width, 0.f, 0.f, -1.f,
+            0.f, -2.f / (float)height, 0.f, 1.f,
             0.f, 0.f, 1.f, 0.f,
             0.f, 0.f, 0.f, 1.f,
         };
 
         glUseProgram(program);
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
+
+
+        glBindVertexArray(vao);
+        glLineWidth(5.f);
+        glDrawArrays(GL_LINE_STRIP, 0, vertices.size());
+
+        glPointSize(10);
+        glDrawArrays(GL_POINTS, 0, vertices.size());
+
+
+        glBindVertexArray(vaoB);
+        glDrawArrays(GL_LINE_STRIP, 0, verticesB.size());
+        glLineWidth(5.f);
+
 
         SDL_GL_SwapWindow(window);
     }
