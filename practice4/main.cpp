@@ -176,7 +176,32 @@ int main() try
 
     std::map<SDL_Keycode, bool> button_down;
 
+    GLuint vbo, vao, ebo;
+
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, bunny.vertices.size() * sizeof(obj_data::vertex), bunny.vertices.data(), GL_STATIC_DRAW);
+
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(obj_data::vertex), (void*)(0));
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(obj_data::vertex), (void*)(sizeof(obj_data::vertex::position)));
+    glEnableVertexAttribArray(1);
+
+
+    glGenBuffers(1, &ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, bunny.indices.size() * sizeof(uint32_t), bunny.indices.data(), GL_STATIC_DRAW);
+
+    glEnable(GL_DEPTH_TEST);
+
     bool running = true;
+    float bunny_x = 0, bunny_y = 0;
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+
     while (running)
     {
         for (SDL_Event event; SDL_PollEvent(&event);) switch (event.type)
@@ -199,6 +224,7 @@ int main() try
         case SDL_KEYUP:
             button_down[event.key.keysym.sym] = false;
             break;
+
         }
 
         if (!running)
@@ -209,36 +235,65 @@ int main() try
         last_frame_start = now;
         time += dt;
 
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        float angle = time;
+        float scale = 0.5;
+        float speed = 1.0;
+
+        if (button_down[SDLK_LEFT])
+            bunny_x -= dt * speed;
+        if (button_down[SDLK_RIGHT])
+            bunny_x += dt * speed;
+        if (button_down[SDLK_UP])
+            bunny_y += dt * speed;
+        if (button_down[SDLK_DOWN])
+            bunny_y -= dt * speed;
 
         float model[16] =
-        {
-            1.f, 0.f, 0.f, 0.f,
-            0.f, 1.f, 0.f, 0.f,
-            0.f, 0.f, 1.f, 0.f,
-            0.f, 0.f, 0.f, 1.f,
+            {
+                scale * cos(angle), 0.f,         -scale * sin(angle), bunny_x,  // составляем матрицу, которая теперь помимо поворота как раньше, деает ещё и сдвиг (сначала поворот, затем сдвиг)
+                0.f,                scale * 1.f, 0.f,                 bunny_y,  // (всё это относительно исходной системы координат, в которой заяц задан изначально в файле)
+                scale * sin(angle), 0.f,         scale * cos(angle),  0.f,
+                0.f,                0.f,         0.f,                 1.f,
         };
+        // float model[16] =
+        // {
+        //     scale * cos(angle), 0.f       , -scale * sin(angle), 0.f,
+        //     0.f               ,scale * 1.f, 0.f                , 0.f,
+        //     scale * sin(angle), 0.f       ,  scale * cos(angle), 0.f,
+        //     0.f               , 0.f       , 0.f                , 1.f,
+        // };
 
         float view[16] =
         {
             1.f, 0.f, 0.f, 0.f,
             0.f, 1.f, 0.f, 0.f,
-            0.f, 0.f, 1.f, 0.f,
+            0.f, 0.f, 1.f, -2.f,
             0.f, 0.f, 0.f, 1.f,
         };
 
+        float near = 0.1;
+        float far = 100;
+        float theta = 90;
+        float right = near * tan(theta * M_PIf / 180 / 2);
+        float top = right * height / width;
         float projection[16] =
         {
-            1.f, 0.f, 0.f, 0.f,
-            0.f, 1.f, 0.f, 0.f,
-            0.f, 0.f, 1.f, 0.f,
-            0.f, 0.f, 0.f, 1.f,
+            near / right, 0.f       ,  0.f                        , 0.f                           ,
+            0.f         , near / top,  0.f                        , 0.f                           ,
+            0.f         , 0.f       , -(far + near) / (far - near), -2 * far * near / (far - near),
+            0.f         , 0.f       , -1.f                        , 0.f                           ,
         };
 
         glUseProgram(program);
         glUniformMatrix4fv(model_location, 1, GL_TRUE, model);
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
         glUniformMatrix4fv(projection_location, 1, GL_TRUE, projection);
+
+
+        glBindVertexArray(vao);
+        glDrawElements(GL_TRIANGLES, bunny.indices.size(), GL_UNSIGNED_INT, (void*)(0));
 
         SDL_GL_SwapWindow(window);
     }
