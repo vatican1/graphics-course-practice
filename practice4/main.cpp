@@ -200,7 +200,7 @@ int main() try
     float bunny_x = 0, bunny_y = 0;
 
     glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT);
+    // glCullFace(GL_FRONT);
 
     while (running)
     {
@@ -251,19 +251,28 @@ int main() try
             bunny_y -= dt * speed;
 
         float model[16] =
-            {
-                scale * cos(angle), 0.f,         -scale * sin(angle), bunny_x,  // составляем матрицу, которая теперь помимо поворота как раньше, деает ещё и сдвиг (сначала поворот, затем сдвиг)
-                0.f,                scale * 1.f, 0.f,                 bunny_y,  // (всё это относительно исходной системы координат, в которой заяц задан изначально в файле)
-                scale * sin(angle), 0.f,         scale * cos(angle),  0.f,
-                0.f,                0.f,         0.f,                 1.f,
+        {
+            scale * cos(angle), 0.f        , -scale * sin(angle), bunny_x,
+            0.f               , scale * 1.f, 0.f                , bunny_y,
+            scale * sin(angle), 0.f        ,  scale * cos(angle), 0.f    ,
+            0.f               , 0.f        , 0.f                , 1.f    ,
         };
-        // float model[16] =
-        // {
-        //     scale * cos(angle), 0.f       , -scale * sin(angle), 0.f,
-        //     0.f               ,scale * 1.f, 0.f                , 0.f,
-        //     scale * sin(angle), 0.f       ,  scale * cos(angle), 0.f,
-        //     0.f               , 0.f       , 0.f                , 1.f,
-        // };
+
+        float model1[16] =
+        {
+            scale * cos(angle), -scale * sin(angle), 0.f        , bunny_x + 0.7f,
+            scale * sin(angle),  scale * cos(angle), 0.f        , bunny_y + 0.7f,
+            0.f               , 0.f                , scale * 1.f, 0.f           ,
+            0.f               , 0.f                , 0.f        , 1.f           ,
+        };
+
+        float model2[16] =
+        {
+            scale * 1.f, 0.f               , 0.f                , bunny_x - 0.7f,
+            0.f        , scale * cos(angle), -scale * sin(angle), bunny_y - 0.7f,
+            0.f        , scale * sin(angle),  scale * cos(angle), 0.f           ,
+            0.f        , 0.f               , 0.f                , 1.f           ,
+        };
 
         float view[16] =
         {
@@ -293,6 +302,10 @@ int main() try
 
 
         glBindVertexArray(vao);
+        glDrawElements(GL_TRIANGLES, bunny.indices.size(), GL_UNSIGNED_INT, (void*)(0));
+        glUniformMatrix4fv(model_location, 1, GL_TRUE, model1);
+        glDrawElements(GL_TRIANGLES, bunny.indices.size(), GL_UNSIGNED_INT, (void*)(0));
+        glUniformMatrix4fv(model_location, 1, GL_TRUE, model2);
         glDrawElements(GL_TRIANGLES, bunny.indices.size(), GL_UNSIGNED_INT, (void*)(0));
 
         SDL_GL_SwapWindow(window);
