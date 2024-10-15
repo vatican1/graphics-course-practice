@@ -19,8 +19,10 @@
 
 const std::uint32_t PRIMITIVE_RESTART_INDEX = 2392392392;
 float VAL_LIM = 3.5;
+int stepsCount = 1;
 
 int gridW = 100, gridH = 100; // количество элементов в сетке
+
 
 struct point2d
 {
@@ -67,16 +69,16 @@ void calcOneIsoline(const std::vector<point2d> & points,
         }
     }
 
-    // for(int i = 0; i < w; ++i)
+    // for(int i = 0; i < w + 1; ++i)
     // {
-    //     for(int j = 0; j < h; ++j)
+    //     for(int j = 0; j < h + 1; ++j)
     //     {
     //         std::cout <<    values[ i      * (h + 1) + j    ] << " ";
     //     }
     //     std::cout << std::endl;
     // }
 
-    ret->clear();
+    // ret->clear();
     for(int i = 0; i < w; ++i)
     {
         for(int j = 0; j < h; ++j)
@@ -98,36 +100,46 @@ void calcOneIsoline(const std::vector<point2d> & points,
             double downLeftV  = values[(i + 1) * (h + 1) + j    ];
             double downRightV = values[(i + 1) * (h + 1) + j + 1];
 
+            // double x0 = (double) i / double(w), x1  =(double) (i + 1) / double(w);
+            // double y0 = (double) j / double(h), y1  =(double) (j + 1) / double(h);
+            double x0 = points[i * (h + 1) + j].x;
+            double y0 = points[i * (h + 1) + j].y;
 
-            double x0 = (double) i / double(w), x1  =(double) (i + 1) / double(w);
-            double y0 = (double) j / double(h), y1  =(double) (j + 1) / double(h);
+            double x1 = points[(i + 1) * (h + 1) + j + 1].x;
+            double y1 = points[(i + 1) * (h + 1) + j + 1].y;
 
-            double c1 = (upLeftV - threeshold) / (threeshold - upRightV);
-            double c2 = (downLeftV - threeshold) / (threeshold - downRightV);
 
-            double c3 = (upLeftV - threeshold) / (threeshold - downLeftV);
-            double c4 = (upRightV - threeshold) / (threeshold - downRightV);
+            double c3 = (upLeftV - threeshold) / (threeshold - upRightV);
+            double c4 = (downLeftV - threeshold) / (threeshold - downRightV);
 
-            point2d left ((x0 * c1 + x1) / (c1 + 1.f), y0);
+            double c1 = (upLeftV - threeshold) / (threeshold - downLeftV);
+            double c2 = (upRightV - threeshold) / (threeshold - downRightV);
+
+            c1 = std::abs(c1);
+            c2 = std::abs(c2);
+            c3 = std::abs(c3);
+            c4 = std::abs(c4);
+
+            point2d left ((x0 + c1 * x1) / (c1 + 1.f), y0);
             if(std::isinf(c1) || std::isnan(c1))
                 left = point2d(x0, y0);
             if(c1 == -1)
-                left = point2d(x1, y0);
+                left = point2d(x0, y0);
 
-            point2d right ((x0 * c2 + x1 ) / (c2 + 1.f), y1);
+            point2d right ((x0 + c2  * x1 ) / (c2 + 1.f), y1);
             if(std::isinf(c2) || std::isnan(c2))
                 right = point2d(x0, y1);
             if(c2 == -1)
-                right = point2d(x1, y1);
+                right = point2d(x0, y1);
 
 
-            point2d up  (x0, (y0 * c3 + y1 ) / (1.f + c3));
+            point2d up  (x0, (y0 + c3 * y1 ) / (1.f + c3));
             if(std::isinf(c3) || std::isnan(c3))
                 up = point2d (x0, y0);
             if(c3 == -1)
                 right = point2d(x0, y1);
 
-            point2d down (x1, (y0 * c4 + y1 ) / (1.f + c4));
+            point2d down (x1, (y0 + c4 * y1 ) / (1.f + c4));
             if(std::isinf(c4) || std::isnan(c4))
                 down = point2d(x1, y0);
             if(c4 == -1)
@@ -221,7 +233,7 @@ void matchPoints(const std::vector<std::pair<point2d, point2d>> & pairPoints,
 
 float f1(float x, float y, float time)
 {
-    return sin(x * 10.f) ;//* sin((x - y) * 5.f);
+    // return sin(y * 3.1415f * 2.f);
 
     return sin(10.f * x + time * 1.2f) +
            cos(time) * cos(5.f * (x + y) + time / 1.2f) +
@@ -247,8 +259,8 @@ void calcGrid(int w, int h, std::vector<point2d> * grid)
     for(int i = 0; i < w + 1; ++i) for(int j = 0; j < h + 1; ++j)
         {
             point2d p;
-            p.x = (float) i / float(w) * 1.5f;
-            p.y = (float) j / float(h) * 1.5f;
+            p.x = (float) i / float(w);
+            p.y = (float) j / float(h);
             grid->push_back(p);
         }
 }
@@ -466,7 +478,10 @@ int main() try
     std::vector<uint32_t> isoIndeces;
     std::vector<point2d> screenIsoPoints;
 
-    calcOneIsoline(grid, gridValues, gridW, gridH, 0, &isolinesPair);
+    isolinesPair.clear();
+    for(int i = -1; i <= 1; ++i)
+        calcOneIsoline(grid, gridValues, gridW, gridH, i, &isolinesPair);
+
     matchPoints(isolinesPair, &normalIsoPoints, &isoIndeces);
     calcScreenIsopoints(width, height, normalIsoPoints, &screenIsoPoints);
 
@@ -530,11 +545,11 @@ int main() try
         case SDL_KEYDOWN:
             if (event.key.keysym.sym == SDLK_LEFT)
             {
-
+                stepsCount = std::max(1, stepsCount - 1);
             }
             else if (event.key.keysym.sym == SDLK_RIGHT)
             {
-
+                stepsCount = std::min(10, stepsCount + 1);
             }
             else if (event.key.keysym.sym == SDLK_UP)
             {
@@ -544,8 +559,8 @@ int main() try
             }
             else if (event.key.keysym.sym == SDLK_DOWN)
             {
-                gridW = std::max(3, gridW - 1);
-                gridH = std::max(3, gridH - 1);
+                gridW = std::max(5, gridW - 1);
+                gridH = std::max(5, gridH - 1);
                 needUpdateCalcGrid = true;
             }
             else if (event.key.keysym.sym == SDLK_SPACE)
@@ -611,7 +626,11 @@ int main() try
 
         glUseProgram(isoline_program);
         glBindVertexArray(isolines_vao);
-        calcOneIsoline(grid, gridValues, gridW, gridH, 0, &isolinesPair);
+
+        isolinesPair.clear();
+        for(float i = -VAL_LIM + VAL_LIM / stepsCount / 2.0; i <= VAL_LIM - VAL_LIM / stepsCount / 2.0; i += VAL_LIM / stepsCount)
+            calcOneIsoline(grid, gridValues, gridW, gridH, i, &isolinesPair);
+
         matchPoints(isolinesPair, &normalIsoPoints, &isoIndeces);
         calcScreenIsopoints(width, height, normalIsoPoints, &screenIsoPoints);
 
