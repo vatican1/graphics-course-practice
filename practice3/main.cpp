@@ -35,13 +35,17 @@ uniform mat4 view;
 
 layout (location = 0) in vec2 in_position;
 layout (location = 1) in vec4 in_color;
+layout (location = 2) in float in_dist;
 
 out vec4 color;
+out float dist;
+
 
 void main()
 {
     gl_Position = view * vec4(in_position, 0.0, 1.0);
     color = in_color;
+    dist = in_dist;
 }
 )";
 
@@ -49,11 +53,18 @@ const char fragment_shader_source[] =
 R"(#version 330 core
 
 in vec4 color;
+in float dist;
+
+uniform int dash;
+uniform float time;
 
 layout (location = 0) out vec4 out_color;
 
 void main()
 {
+    if (dash == 1 && mod(dist + 20 * time, 40.0) < 20.0)
+        discard;
+
     out_color = color;
 }
 )";
@@ -107,6 +118,7 @@ struct vertex
 {
     vec2 position;
     std::uint8_t color[4];
+    float dist;
 };
 
 vec2 bezier(std::vector<vertex> const & vertices, float t)
@@ -169,6 +181,8 @@ int main() try
     auto program = create_program(vertex_shader, fragment_shader);
 
     GLuint view_location = glGetUniformLocation(program, "view");
+    GLuint dash_location = glGetUniformLocation(program, "dash");
+    GLuint time_location = glGetUniformLocation(program, "time");
 
     auto last_frame_start = std::chrono::high_resolution_clock::now();
 
@@ -227,9 +241,11 @@ int main() try
     glBindVertexArray(vaoB);
 
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2,         GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)(0)                );
+    glVertexAttribPointer(0, 2, GL_FLOAT        , GL_FALSE, sizeof(vertex), (void*)(0)                                          );
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE,  GL_TRUE, sizeof(vertex), (void*)(2 * sizeof(float)));
+    glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE , sizeof(vertex), (void*)(2 * sizeof(float))                          );
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 1, GL_FLOAT        , GL_FALSE, sizeof(vertex), (void*)(2 * sizeof(float)+ 4 * sizeof(std::uint8_t)));
 
 
 
@@ -307,10 +323,14 @@ int main() try
         {
             verticesB.clear();
             verticesB.reserve((float) vertices.size() * float(quality));
-            for(float t = 0; t <= 1; t+= 1 / (float) vertices.size() / float(quality))
+            for(float t = 0; t <= 1 + 1e-5; t += 1 / (float) vertices.size() / float(quality))
             {
                 vec2 p2d = bezier(vertices, t);
                 vertex vertex = {p2d.x, p2d.y, 255, 0, 0, 255};
+                vertex.dist = verticesB.size() == 0 ? 0.0 : verticesB.back().dist;
+                vertex.dist += verticesB.size() == 0 ?
+                                   0.0 :
+                                   std::hypot(verticesB.back().position.x - vertex.position.x, verticesB.back().position.y - vertex.position.y);
                 verticesB.push_back(vertex);
             }
             glBindBuffer(GL_ARRAY_BUFFER, vboB);
@@ -327,8 +347,9 @@ int main() try
 
         glUseProgram(program);
         glUniformMatrix4fv(view_location, 1, GL_TRUE, view);
+        glUniform1f(time_location, time);
 
-
+        glUniform1i(dash_location, 0);
         glBindVertexArray(vao);
         glLineWidth(5.f);
         glDrawArrays(GL_LINE_STRIP, 0, vertices.size());
@@ -336,7 +357,7 @@ int main() try
         glPointSize(10);
         glDrawArrays(GL_POINTS, 0, vertices.size());
 
-
+        glUniform1i(dash_location, 1);
         glBindVertexArray(vaoB);
         glDrawArrays(GL_LINE_STRIP, 0, verticesB.size());
         glLineWidth(5.f);
