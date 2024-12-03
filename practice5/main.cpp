@@ -214,6 +214,7 @@ int main() try
     glTexImage2D(GL_TEXTURE_2D, 3, GL_RGBA8, size3, size3, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsB.data());
 
     GLuint new_texture;
+    glGenTextures(1, &new_texture);
     glActiveTexture(GL_TEXTURE0 + 1);
     glBindTexture(GL_TEXTURE_2D, new_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
