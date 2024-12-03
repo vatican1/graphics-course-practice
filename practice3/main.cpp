@@ -323,15 +323,18 @@ int main() try
         {
             verticesB.clear();
             verticesB.reserve((float) vertices.size() * float(quality));
-            for(float t = 0; t <= 1 + 1e-5; t += 1 / (float) vertices.size() / float(quality))
+            if(vertices.size())
             {
-                vec2 p2d = bezier(vertices, t);
-                vertex vertex = {p2d.x, p2d.y, 255, 0, 0, 255};
-                vertex.dist = verticesB.size() == 0 ? 0.0 : verticesB.back().dist;
-                vertex.dist += verticesB.size() == 0 ?
-                                   0.0 :
-                                   std::hypot(verticesB.back().position.x - vertex.position.x, verticesB.back().position.y - vertex.position.y);
-                verticesB.push_back(vertex);
+                for(float t = 0; t <= 1 + 1e-5; t += 1 / (float) vertices.size() / float(quality))
+                {
+                    vec2 p2d = bezier(vertices, t);
+                    vertex vertex = {p2d.x, p2d.y, 255, 0, 0, 255};
+                    vertex.dist = verticesB.size() == 0 ? 0.0 : verticesB.back().dist;
+                    vertex.dist += verticesB.size() == 0 ?
+                                       0.0 :
+                                       std::hypot(verticesB.back().position.x - vertex.position.x, verticesB.back().position.y - vertex.position.y);
+                    verticesB.push_back(vertex);
+                }
             }
             glBindBuffer(GL_ARRAY_BUFFER, vboB);
             glBufferData(GL_ARRAY_BUFFER, verticesB.size() * sizeof(vertex), verticesB.data(), GL_STATIC_DRAW);
