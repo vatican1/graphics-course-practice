@@ -52,19 +52,31 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
+uniform mat4x3 bones[100];
+
 layout (location = 0) in vec3 in_position;
 layout (location = 1) in vec3 in_normal;
 layout (location = 2) in vec2 in_texcoord;
 
+layout (location = 3) in ivec4 in_joints;
+layout (location = 4) in vec4 in_weights;
+
 out vec3 normal;
 out vec2 texcoord;
+out vec4 weights;
 
 void main()
 {
 
-    gl_Position = projection * view * model * vec4(in_position, 1.0);
-    normal = mat3(model) * in_normal;
+    mat4x3 average = bones[in_joints.x] * in_weights.x
+                   + bones[in_joints.y] * in_weights.y
+                   + bones[in_joints.z] * in_weights.z
+                   + bones[in_joints.w] * in_weights.w;
+
+    gl_Position = projection * view * model * mat4(average) * vec4(in_position, 1.0);
+    normal = mat3(model) * mat3(average) * in_normal;
     texcoord = in_texcoord;
+    weights = in_weights;
 }
 )";
 
@@ -81,6 +93,7 @@ layout (location = 0) out vec4 out_color;
 
 in vec3 normal;
 in vec2 texcoord;
+in vec4 weights;
 
 void main()
 {
@@ -94,6 +107,7 @@ void main()
     float ambient = 0.4;
     float diffuse = max(0.0, dot(normalize(normal), light_direction));
 
+    // out_color = weights;
     out_color = vec4(albedo_color.rgb * (ambient + diffuse), albedo_color.a);
 }
 )";
@@ -186,6 +200,7 @@ int main() try
     GLuint color_location = glGetUniformLocation(program, "color");
     GLuint use_texture_location = glGetUniformLocation(program, "use_texture");
     GLuint light_direction_location = glGetUniformLocation(program, "light_direction");
+    GLuint bones_location = glGetUniformLocation(program, "bones");
 
     const std::string project_root = PROJECT_ROOT;
     const std::string model_path = project_root + "/dancing/dancing.gltf";
@@ -263,6 +278,9 @@ int main() try
 
     float time = 0.f;
 
+    float time_from_shift = 0.f;
+    bool in_shift = false;
+
     std::map<SDL_Keycode, bool> button_down;
 
     float view_angle = 0.f;
@@ -272,6 +290,9 @@ int main() try
     float camera_height = 1.f;
 
     bool paused = false;
+
+    std::string curr_animation_name = "hip-hop";
+    std::string prev_animation_name = "hip-hop";
 
     bool running = true;
     while (running)
@@ -308,7 +329,10 @@ int main() try
         last_frame_start = now;
 
         if (!paused)
+        {
             time += dt;
+            time_from_shift += dt;
+        }
 
         if (button_down[SDLK_UP])
             camera_distance -= 3.f * dt;
@@ -325,6 +349,22 @@ int main() try
         if (button_down[SDLK_s])
             view_angle += 2.f * dt;
 
+        if ((button_down[SDLK_1] || button_down[SDLK_2] || button_down[SDLK_3]) && !in_shift)
+        {
+            in_shift = true;
+            time_from_shift = 0.f;
+            prev_animation_name = curr_animation_name;
+            if(button_down[SDLK_1])
+                curr_animation_name = "hip-hop";
+            if(button_down[SDLK_2])
+                curr_animation_name = "rumba";
+            if(button_down[SDLK_3])
+                curr_animation_name = "flair";
+        }
+
+        if(time_from_shift > 1.f)
+            in_shift = false;
+
         glClearColor(0.8f, 0.8f, 1.f, 0.f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -335,7 +375,7 @@ int main() try
         float near = 0.1f;
         float far = 100.f;
 
-        glm::mat4 model = glm::scale(glm::mat4(1.f), glm::vec3(1.f));
+        glm::mat4 model = glm::scale(glm::mat4(1.f), glm::vec3(0.01f));
 
         glm::mat4 view(1.f);
         view = glm::translate(view, {0.f, 0.f, -camera_distance});
@@ -349,11 +389,42 @@ int main() try
 
         glm::vec3 light_direction = glm::normalize(glm::vec3(1.f, 2.f, 3.f));
 
+
+
+        size_t bones_count = input_model.bones.size();
+        std::vector<glm::mat4x3> bones(bones_count);
+
+        const gltf_model::animation & animation = input_model.animations.at(curr_animation_name);
+        const gltf_model::animation & prev_animation = input_model.animations.at(prev_animation_name);
+        for(size_t i = 0 ; i < bones_count; ++i)
+        {
+            glm::vec3 translation = animation.bones[i].translation(std::fmod(time, animation.max_time));
+            if(in_shift)
+                translation = glm::lerp(prev_animation.bones[i].translation(std::fmod(time, prev_animation.max_time)), translation, time_from_shift);
+
+            glm::quat rotation =  animation.bones[i].rotation(std::fmod(time, animation.max_time));
+            if(in_shift)
+                rotation = glm::slerp(prev_animation.bones[i].rotation(std::fmod(time, prev_animation.max_time)), rotation, time_from_shift);
+
+            glm::vec3 scale =  animation.bones[i].scale(std::fmod(time, animation.max_time));
+            if(in_shift)
+                scale = glm::lerp(prev_animation.bones[i].scale(std::fmod(time, prev_animation.max_time)), scale, time_from_shift);
+
+            glm::mat4 transform = glm::translate(glm::mat4(1.f), translation) * glm::toMat4(rotation) * glm::scale(glm::mat4(1.f), scale);
+            if(input_model.bones[i].parent != -1)
+                transform = glm::mat4(bones[input_model.bones[i].parent]) * transform;
+            bones[i] = transform;
+        }
+
+        for(size_t i =0 ; i < bones_count; ++i) bones[i] = bones[i] * input_model.bones[i].inverse_bind_matrix;
+
+
         glUseProgram(program);
         glUniformMatrix4fv(model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
         glUniformMatrix4fv(view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
         glUniformMatrix4fv(projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection));
         glUniform3fv(light_direction_location, 1, reinterpret_cast<float *>(&light_direction));
+        glUniformMatrix4x3fv(bones_location, bones_count, GL_FALSE, reinterpret_cast<float *>(bones.data()));
 
         auto draw_meshes = [&](bool transparent)
         {
