@@ -18,10 +18,12 @@
 #include "shaders.h"
 
 const std::uint32_t PRIMITIVE_RESTART_INDEX = 2392392392;
-float VAL_LIM = 3.5;
+float VAL_LIM = 2.5;
 int stepsCount = 1;
 
-int gridW = 100, gridH = 100; // количество элементов в сетке
+float scale = 10;
+
+int gridW = 200, gridH = 200; // количество элементов в сетке
 
 
 struct point2d
@@ -69,16 +71,6 @@ void calcOneIsoline(const std::vector<point2d> & points,
         }
     }
 
-    // for(int i = 0; i < w + 1; ++i)
-    // {
-    //     for(int j = 0; j < h + 1; ++j)
-    //     {
-    //         std::cout <<    values[ i      * (h + 1) + j    ] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-
-    // ret->clear();
     for(int i = 0; i < w; ++i)
     {
         for(int j = 0; j < h; ++j)
@@ -100,8 +92,6 @@ void calcOneIsoline(const std::vector<point2d> & points,
             double downLeftV  = values[(i + 1) * (h + 1) + j    ];
             double downRightV = values[(i + 1) * (h + 1) + j + 1];
 
-            // double x0 = (double) i / double(w), x1  =(double) (i + 1) / double(w);
-            // double y0 = (double) j / double(h), y1  =(double) (j + 1) / double(h);
             double x0 = points[i * (h + 1) + j].x;
             double y0 = points[i * (h + 1) + j].y;
 
@@ -235,12 +225,15 @@ float f1(float x, float y, float time)
 {
     // return sin(y * 3.1415f * 2.f);
 
-    return sin(10.f * x + time * 1.2f) +
-           cos(time) * cos(5.f * (x + y) + time / 1.2f) +
-           sin(time / 1.5f) * cos(5.f * (x - y + time / 2.f)) +
-           cos(time * 1.5f) * sin(5.f * (x + y + time / 2.f)) +
-           sin(time)       * sin(x * 3.14f * 2.f + time * 2.f) * sqrt(2.f * y * x) +
-           cos(time / 3.f) * sin(y * 3.14f * 2.f + time / 4.f) * sqrt(2.f * y * x);
+    return sin(10.f * x + time * 1.2f) * cos(y + time * 2.1) +
+           cos(time * 1.3f) * cos(5.f * (x + y) + time / 1.2f) +
+           sin(time / 1.5f)  * cos(5.f * (x - y + time / 2.f)) +
+           cos(time * 1.5f)  * sin(5.f * (x + y + time / 2.1f)) +
+           sin(time * 1.4f)   * sin(x * 3.14f * 2.f + time * 2.f) +
+           cos(time / 3.f)   * sin(y * 3.14f * 2.f + time / 4.f) +
+           sin(time / 1.6f)  * cos(3.5f * (x - y + time / 2.3f)) +
+           cos(time / 1.7f)  * sin(3.5f * sqrt(x * x + y * y + time * time / 2.4f)) +
+           sin(sqrt(2.f * y * x) + time * 1.8) * cos(sqrt(1.5f * y * x)+ time * 1.9) ;
 }
 
 
@@ -259,8 +252,8 @@ void calcGrid(int w, int h, std::vector<point2d> * grid)
     for(int i = 0; i < w + 1; ++i) for(int j = 0; j < h + 1; ++j)
         {
             point2d p;
-            p.x = (float) i / float(w);
-            p.y = (float) j / float(h);
+            p.x = (float) i / float(w) * scale;
+            p.y = (float) j / float(h) * scale;
             grid->push_back(p);
         }
 }
@@ -321,8 +314,8 @@ void calcScreenIsopoints(int screenWidth, int screenHeight, const std::vector<po
     for(const point2d & p : points)
     {
         point2d newP;
-        newP.x = float(limit) * p.x + dx;
-        newP.y = float(limit) * p.y + dy;
+        newP.x = float(limit) * p.x / scale + dx;
+        newP.y = float(limit) * p.y / scale + dy;
         vec->push_back(newP);
     }
 }
@@ -567,6 +560,16 @@ int main() try
             {
                 pause = !pause;
             }
+            else if (event.key.keysym.sym == SDLK_MINUS)
+            {
+                needUpdateCalcGrid = true;
+                scale += 0.1;
+            }
+            else if (event.key.keysym.sym == SDLK_EQUALS)
+            {
+                needUpdateCalcGrid = true;
+                scale = std::max(0.5, scale - 0.1);
+            }
             break;
         }
 
@@ -586,7 +589,6 @@ int main() try
             needUpdateCalcGrid = false;
 
             calcGrid(gridW, gridH, &grid);
-            calcValuesGrid(grid, time, &gridValues);
             calcIndeces(gridW, gridH, &gridIndeces);
             calcScreenGrid(width, height, gridW, gridH, &screenGrid);
 
