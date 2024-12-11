@@ -245,6 +245,11 @@ int main() try
     bool paused = false;
 
     bool running = true;
+
+
+    std::vector<GLuint> queries;
+    std::vector<bool> query_free;
+
     while (running)
     {
         for (SDL_Event event; SDL_PollEvent(&event);) switch (event.type)
@@ -306,6 +311,27 @@ int main() try
         camera_position += camera_move_forward * glm::vec3(-std::sin(camera_rotation), 0.f, std::cos(camera_rotation));
         camera_position += camera_move_sideways * glm::vec3(std::cos(camera_rotation), 0.f, std::sin(camera_rotation));
 
+        GLuint free_id = -1;
+        for (int query_i = 0; query_i < queries.size(); ++query_i)
+        {
+            if (query_free[query_i])
+            {
+                free_id = query_i;
+                break;
+            }
+        }
+
+        if (free_id == -1)
+        {
+            const int new_query_i = queries.size();
+            queries.push_back(0);
+            query_free.push_back(true);
+            glGenQueries(1, &queries[new_query_i]);
+            free_id = new_query_i;
+        }
+        query_free[free_id] = false;
+        glBeginQuery(GL_TIME_ELAPSED, queries[free_id]);
+
         glClearColor(0.8f, 0.8f, 1.f, 0.f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -316,35 +342,59 @@ int main() try
         float near = 0.1f;
         float far = 100.f;
 
-        glm::mat4 model(1.f);
+        // glm::mat4 model(1.f);
 
-        glm::mat4 view(1.f);
-        view = glm::rotate(view, camera_rotation, {0.f, 1.f, 0.f});
-        view = glm::translate(view, -camera_position);
-
-        glm::mat4 projection = glm::perspective(glm::pi<float>() / 2.f, (1.f * width) / height, near, far);
-
-        glm::vec3 camera_position = (glm::inverse(view) * glm::vec4(0.f, 0.f, 0.f, 1.f)).xyz();
-
-        glm::vec3 light_direction = glm::normalize(glm::vec3(1.f, 2.f, 3.f));
-
-        glUseProgram(program);
-        glUniformMatrix4fv(model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
-        glUniformMatrix4fv(view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
-        glUniformMatrix4fv(projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection));
-        glUniform3fv(light_direction_location, 1, reinterpret_cast<float *>(&light_direction));
-
-        glBindTexture(GL_TEXTURE_2D, texture);
-
+        for (int i = -16; i < 16; ++i) for (int j = -16; j < 16; ++j)
         {
-            auto const & mesh = input_model.meshes[0];
-            glBindVertexArray(vaos[0]);
-            glDrawElements(GL_TRIANGLES, mesh.indices.count, mesh.indices.type, reinterpret_cast<void *>(mesh.indices.view.offset));
+            glm::mat4 model(1.f);
+            model = glm::translate(model, { 1.f * i, 0.f, 1.f * j });
+
+            glm::mat4 view(1.f);
+            view = glm::rotate(view, camera_rotation, {0.f, 1.f, 0.f});
+            view = glm::translate(view, -camera_position);
+
+            glm::mat4 projection = glm::perspective(glm::pi<float>() / 2.f, (1.f * width) / height, near, far);
+
+            glm::vec3 camera_position = (glm::inverse(view) * glm::vec4(0.f, 0.f, 0.f, 1.f)).xyz();
+
+            glm::vec3 light_direction = glm::normalize(glm::vec3(1.f, 2.f, 3.f));
+
+            glUseProgram(program);
+            glUniformMatrix4fv(model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
+            glUniformMatrix4fv(view_location, 1, GL_FALSE, reinterpret_cast<float *>(&view));
+            glUniformMatrix4fv(projection_location, 1, GL_FALSE, reinterpret_cast<float *>(&projection));
+            glUniform3fv(light_direction_location, 1, reinterpret_cast<float *>(&light_direction));
+
+            glBindTexture(GL_TEXTURE_2D, texture);
+
+            {
+                auto const & mesh = input_model.meshes[0];
+                glBindVertexArray(vaos[0]);
+                glDrawElements(GL_TRIANGLES, mesh.indices.count, mesh.indices.type, reinterpret_cast<void *>(mesh.indices.view.offset));
+            }
         }
 
+        glEndQuery(GL_TIME_ELAPSED);
         SDL_GL_SwapWindow(window);
+
+        for (int query_i = 0; query_i < queries.size(); ++query_i)
+        {
+            if (query_free[query_i])
+                continue;
+
+            GLint result;
+            glGetQueryObjectiv(queries[query_i], GL_QUERY_RESULT_AVAILABLE, &result);
+            if (result == GL_FALSE)
+                continue;
+
+            query_free[query_i] = true;
+            glGetQueryObjectiv(queries[query_i], GL_QUERY_RESULT, &result);
+            std::cout << "queries[query_i] " << queries[query_i] << " = " << (float)result / 1e6f << " ms\n";
+        }
+        std::cout << std::flush;
     }
 
+    std::cout << "queries.size() = " << queries.size() << "\n";
     SDL_GL_DeleteContext(gl_context);
     SDL_DestroyWindow(window);
 }
