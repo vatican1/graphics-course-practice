@@ -349,7 +349,7 @@ int main() try {
                 glm::mat4 model(0.4f);
                 model = glm::translate(model, {3.0f * (j-1), -3.f * (i-1), 0.f});
 
-                glUniform1f(glossiness_location, (1.0 + 3.0 * i) / 7.0);
+                glUniform1f(glossiness_location, (1.0 + 3.0 * i) / 10.0);
                 glUniform1f(roughness_location, 0.1 + j * 0.2);
                 glUniformMatrix4fv(model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
 
