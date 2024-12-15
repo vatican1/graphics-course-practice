@@ -97,7 +97,7 @@ vec3 specular(vec3 direction)
     float curr_cos = dot(normal, direction);
     vec3 reflected = 2.0 * normal * curr_cos - direction;
     vec3 view_direction = normalize(camera_position - position);
-    float power = 1 / (roughness * roughness) - 1;
+    float power = 1.0 / (roughness * roughness) - 1.0;
     return glossiness * albedo * pow(max(0.0, dot(reflected, view_direction)), power);
 }
 
@@ -111,7 +111,7 @@ void main()
 
     float dist = length(point_light_position - position);
     vec3 point_light_direction = normalize(point_light_position - position);
-    float coef = 1 / (point_light_attenuation.x + point_light_attenuation.y * dist + point_light_attenuation.z * dist * dist);
+    float coef = 1.0 / (point_light_attenuation.x + point_light_attenuation.y * dist + point_light_attenuation.z * dist * dist);
     vec3 diff_point = (diffuse(point_light_direction) + specular(point_light_direction)) * coef * point_light_color;
     color += diff_point;
 
@@ -334,7 +334,7 @@ int main() try {
         glUniform3f(albedo_location, 0.7f, 0.4f, 0.2f);
         glUniform3f(ambient_light_location, 0.2f, 0.2f, 0.2f);
 
-        glUniform3f(sun_direction_location, 0.7f, 0.0f, 0.7f);
+        glUniform3f(sun_direction_location, 0.7f, 0.0f, sqrt(1 - 0.7f * 0.7f));
         glUniform3f(sun_color_location, 1.0f, 0.9f, 0.8f);
 
         glUniform3f(point_light_position_location, sin(time), sin(time + 1.0f), sin(time + 2.0f));
@@ -349,7 +349,7 @@ int main() try {
                 glm::mat4 model(0.4f);
                 model = glm::translate(model, {3.0f * (j-1), -3.f * (i-1), 0.f});
 
-                glUniform1f(glossiness_location, 1 + 3 * i);
+                glUniform1f(glossiness_location, (1.0 + 3.0 * i) / 7.0);
                 glUniform1f(roughness_location, 0.1 + j * 0.2);
                 glUniformMatrix4fv(model_location, 1, GL_FALSE, reinterpret_cast<float *>(&model));
 
